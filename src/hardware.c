@@ -810,7 +810,11 @@ void hw_config_cback(void *p_mem)
 
                 if (is_proceeding == FALSE)
                 {
-                    is_proceeding = hw_config_set_bdaddr(p_buf);
+#if (BLUETOOTH_HCI_USE_USB == TRUE)
+                    is_proceeding = hw_config_read_bdaddr(p_buf);
+#else
+                     is_proceeding = hw_config_set_bdaddr(p_buf);
+#endif
                 }
                 break;
 
@@ -862,18 +866,22 @@ void hw_config_cback(void *p_mem)
                 /* Check if we need to pause a few hundred milliseconds
                  * before sending down any HCI command.
                  */
-                delay = look_up_fw_settlement_delay();
-                ALOGI("Setting fw settlement delay to %d ", delay);
-                ms_delay(delay);
+                ms_delay(look_up_fw_settlement_delay());
+
+                /* fall through intentionally */
+            case HW_CFG_START:
+#if (BLUETOOTH_HCI_USE_USB == TRUE)
+                /* read local name */
+                UINT16_TO_STREAM(p, HCI_READ_LOCAL_NAME);
+                *p = 0; /* parameter length */
 
                 p_buf->len = HCI_CMD_PREAMBLE_SIZE;
-                UINT16_TO_STREAM(p, HCI_RESET);
-                *p = 0; /* parameter length */
-                hw_cfg_cb.state = HW_CFG_START;
-                is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_RESET, p_buf, hw_config_cback);
-                break;
+                hw_cfg_cb.state = HW_CFG_READ_LOCAL_NAME;
 
-            case HW_CFG_START:
+                is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_READ_LOCAL_NAME, \
+                                                    p_buf, hw_config_cback);
+                break;
+#endif
                 if (UART_TARGET_BAUD_RATE > 3000000)
                 {
                     /* set UART clock to 48MHz */
